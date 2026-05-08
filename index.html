@@ -286,16 +286,8 @@ select.fmt-select{border:1px solid #d5d5d5;border-radius:5px;padding:2px 4px;fon
    right: 12px margin from viewport edge — never overlaps left-side format controls
 */
 #tbl-bar{
-  position:fixed;z-index:4000;
-  top:110px;
-  right:16px;
-  left:auto;
-  transform:none;
-  background:#1a1a2e;border-radius:8px;
-  box-shadow:0 3px 14px rgba(0,0,0,.24);
-  display:none;flex-direction:row;align-items:center;gap:2px;padding:4px 6px;
-  pointer-events:auto;
-  transition:opacity .15s;
+  display:none!important;
+  pointer-events:none;
 }
 .tbl-bar-btn{
   height:28px;padding:0 8px;background:none;border:none;
@@ -341,9 +333,9 @@ select.fmt-select{border:1px solid #d5d5d5;border-radius:5px;padding:2px 4px;fon
   /* We inject our own date/time via the .print-datetime element instead */
   @page{size:A4 portrait;margin:0}
   body{margin:18mm 18mm 15mm 18mm!important}
-  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
   body{background:white!important;padding:0}
-  #auth-screen,.topbar,.editor-toolbar,.format-bar,.editor-sidebar,#upload-modal,#dashboard-view,#toast{display:none!important}
+  #auth-screen,.topbar,.editor-toolbar,.format-bar,.editor-sidebar,#upload-modal,#dashboard-view,#toast,#tbl-bar,#tbl-ctx,#dd-picker,.row-handle,.col-resize-handle{display:none!important}
   #app-screen{display:block!important;min-height:unset}
   #editor-view{display:block!important;height:auto!important;overflow:visible!important}
   .editor-body{display:block!important;overflow:visible!important}
@@ -354,9 +346,23 @@ select.fmt-select{border:1px solid #d5d5d5;border-radius:5px;padding:2px 4px;fon
   .editor-content table{width:100%!important;font-size:11pt!important}
   .editor-content table td,.editor-content table th{border:1px solid #999!important;padding:4px 7px!important}
   .editor-content .proviso{font-size:10pt!important}
+  /* Dropdowns → plain text */
   .editor-content select.doc-dd{border:none!important;background:transparent!important;-webkit-appearance:none;appearance:none;padding:0!important;font-size:11pt!important;color:#000!important;pointer-events:none}
   .editor-content span.doc-dd{border:none!important;background:transparent!important;padding:0!important;font-size:11pt!important;color:#000!important}
   .editor-content span.doc-dd::after{display:none!important}
+  /* Bold — all sources */
+  b,strong{font-weight:700!important}
+  span.doc-dd.dd-bold,.editor-content span.doc-dd.dd-bold{font-weight:700!important}
+  *[style*="font-weight:bold"],*[style*="font-weight: bold"],*[style*="font-weight:700"]{font-weight:700!important}
+  .editor-content td *[style*="font-weight:bold"],.editor-content th *[style*="font-weight:bold"]{font-weight:700!important}
+  /* Highlights and background colors — force exact rendering */
+  *[style*="background-color"]{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+  mark{background-color:yellow!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  /* Text colors */
+  *[style*="color:"]{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  /* Italic, underline */
+  i,em{font-style:italic!important}
+  u{text-decoration:underline!important}
 }
 @media(max-width:860px){.editor-page{width:100%;padding:1.5rem}.editor-sidebar{display:none}}
 </style>
@@ -508,14 +514,22 @@ select.fmt-select{border:1px solid #d5d5d5;border-radius:5px;padding:2px 4px;fon
       <button class="fmt-btn" title="Bullet list"   onclick="execCmd('insertUnorderedList')" style="font-size:14px">• ≡</button>
       <button class="fmt-btn" title="Numbered list" onclick="execCmd('insertOrderedList')"   style="font-size:13px">1. ≡</button>
       <div class="fmt-sep"></div>
-      <button class="fmt-btn" title="Undo" onclick="execCmd('undo')" style="font-size:15px">↩</button>
-      <button class="fmt-btn" title="Redo" onclick="execCmd('redo')" style="font-size:15px">↪</button>
+      <button class="fmt-btn" title="Undo" onclick="undoEdit()" style="font-size:15px">↩</button>
+      <button class="fmt-btn" title="Redo" onclick="redoEdit()" style="font-size:15px">↪</button>
       <div class="fmt-sep"></div>
       <!-- TABLE TOOLS in format bar -->
-      <button class="tb-btn" title="Insert new table" onclick="insertNewTable()" style="height:26px;font-size:11px;padding:0 8px;gap:4px">
-        <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:currentColor"><path d="M3 3v18h18V3H3zm8 16H5v-6h6v6zm0-8H5V5h6v6zm8 8h-6v-6h6v6zm0-8h-6V5h6v6z"/></svg>
+      <div class="fmt-sep"></div>
+      <button class="fmt-btn" title="Insert new table" onclick="insertNewTable()">
+        <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:currentColor;vertical-align:middle"><path d="M3 3v18h18V3H3zm8 16H5v-6h6v6zm0-8H5V5h6v6zm8 8h-6v-6h6v6zm0-8h-6V5h6v6z"/></svg>
         Table
       </button>
+      <button class="fmt-btn" id="fmt-add-row" title="Add row below"   onclick="tblAction('addRowBelow')" style="display:none">+Row</button>
+      <button class="fmt-btn" id="fmt-add-col" title="Add col right"   onclick="tblAction('addColRight')" style="display:none">+Col</button>
+      <button class="fmt-btn" id="fmt-del-row" title="Delete row"      onclick="tblAction('deleteRow')"   style="display:none;color:#d32f2f">−Row</button>
+      <button class="fmt-btn" id="fmt-del-col" title="Delete column"   onclick="tblAction('deleteCol')"   style="display:none;color:#d32f2f">−Col</button>
+      <button class="fmt-btn" id="fmt-row-up"  title="Move row up"     onclick="tblAction('moveRowUp')"   style="display:none">▲Row</button>
+      <button class="fmt-btn" id="fmt-row-dn"  title="Move row down"   onclick="tblAction('moveRowDown')" style="display:none">▼Row</button>
+      <button class="fmt-btn" id="fmt-del-tbl" title="Remove table"    onclick="tblAction('deleteTable')" style="display:none;color:#d32f2f">✕Tbl</button>
     </div>
     <div class="editor-body">
       <div class="editor-sidebar">
@@ -1165,8 +1179,12 @@ function execCmd(cmd, val) {
   /* Route undo/redo through our custom stack */
   if (cmd === 'undo') { undoEdit(); return; }
   if (cmd === 'redo') { redoEdit(); return; }
+  /* Snapshot BEFORE applying format so the pre-format state is saved */
+  _snapshot();
   document.getElementById('editor-content').focus();
   document.execCommand(cmd, false, val || null);
+  /* Snapshot AFTER so the formatted state is also saved */
+  setTimeout(_snapshot, 30);
 }
 
 
@@ -1174,50 +1192,101 @@ function execCmd(cmd, val) {
    PRINT (A4 — custom date/time header, no browser headers)
 ══════════════════════════════════════════════════════════ */
 function printDoc() {
-  // ── NO save here. Print reads the live editor — does not persist. ──
   const doc = docs.find(d => d.id === currentDocId);
   if (!doc) return;
 
-  /* Replace dropdowns with their selected plain-text values */
   const clone = document.getElementById('editor-content').cloneNode(true);
+
+  /* ── 1. Replace select dropdowns with plain text ── */
   clone.querySelectorAll('select.doc-dd').forEach(sel => {
     const sp = document.createElement('span');
     sp.textContent = sel.value;
+    // Preserve any inline styles from the select
+    if (sel.style.cssText) sp.style.cssText = sel.style.cssText;
     sel.parentNode.replaceChild(sp, sel);
   });
-  /* Replace editable dropdown spans with plain styled text for printing */
+
+  /* ── 2. Replace editable spans, preserving ALL formatting ── */
   clone.querySelectorAll('span.doc-dd').forEach(sp => {
     const plain = document.createElement('span');
     plain.textContent = sp.textContent;
-    if (sp.classList.contains('dd-bold')) plain.style.fontWeight = 'bold';
+    // Preserve inline styles (background-color, color, etc.)
+    if (sp.style.cssText) plain.style.cssText = sp.style.cssText;
+    // Preserve dd-bold class → inline font-weight
+    if (sp.classList.contains('dd-bold')) {
+      plain.style.fontWeight = 'bold';
+    }
+    // Preserve background highlight if any
+    if (sp.style.backgroundColor) {
+      plain.style.backgroundColor = sp.style.backgroundColor;
+    }
     sp.parentNode.replaceChild(plain, sp);
   });
-  /* Remove drag handles and resize handles from the clone */
+
+  /* ── 3. Walk ALL nodes in clone and force inline styles for print ──
+     This ensures highlight/bold applied via execCommand (which uses
+     <span style="background-color:..."> or <b>/<strong>) all survive */
+  clone.querySelectorAll('*').forEach(function(el) {
+    const cs = window.getComputedStyle
+      ? null  // we rely on inline styles for the clone
+      : null;
+    // Ensure font-weight is explicit for bold elements
+    const tag = el.tagName ? el.tagName.toLowerCase() : '';
+    if (tag === 'b' || tag === 'strong') {
+      el.style.fontWeight = '700';
+    }
+    // Ensure background-color inline styles survive (hiliteColor / backColor)
+    // These are already inline on the element — no extra work needed
+    // But ensure color is explicit
+    if (tag === 'font' && el.getAttribute('color')) {
+      el.style.color = el.getAttribute('color');
+    }
+  });
+
+  /* ── 4. Remove UI-only elements ── */
   clone.querySelectorAll('.row-handle, .col-resize-handle').forEach(el => el.remove());
 
-  /* Format current date & time  e.g.  5/4/2026, 8:17 PM */
+  /* ── 5. Date/time header ── */
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', { day:'numeric', month:'numeric', year:'numeric' })
                 + ', '
                 + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true });
 
   const w = window.open('', '_blank');
-  var printCss = ''
-    + '@page{size:A4 portrait;margin:0}'
-    + '*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}'
-    + 'body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.6;margin:0;padding:18mm 18mm 15mm 18mm;color:#000}'
-    + '.print-header{font-size:9pt;color:#444;margin-bottom:6mm;display:flex;justify-content:space-between;align-items:center}'
-    + '.print-header .dt{font-size:9pt}'
-    + 'h2{font-size:13pt;font-weight:bold;text-align:center;margin:10px 0 6px;letter-spacing:.5px}'
-    + 'h3{font-size:12pt;font-weight:bold;margin:8px 0 4px}'
-    + 'p{margin:3px 0}'
-    + 'table{border-collapse:collapse;width:100%;margin:6px 0;font-size:11pt}'
-    + 'td,th{border:1px solid #999;padding:4px 7px;vertical-align:top;line-height:1.5}'
-    + '.doc-header{margin-bottom:10px}'
-    + '.proviso{font-size:10pt;color:#333;margin-top:14px;border-top:1px solid #ccc;padding-top:8px}'
-    + 'strong{font-weight:bold}em{font-style:italic}';
+
+  /* ── 6. Print CSS — exhaustive formatting preservation ── */
+  var printCss = [
+    '@page{size:A4 portrait;margin:0}',
+    /* Force browser to print all colors exactly */
+    '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;box-sizing:border-box}',
+    'body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.6;margin:0;padding:18mm 18mm 15mm 18mm;color:#000;background:white}',
+    '.print-header{font-size:9pt;color:#444;margin-bottom:6mm;display:flex;justify-content:space-between;align-items:center}',
+    'h2{font-size:13pt;font-weight:700;text-align:center;margin:10px 0 6px;letter-spacing:.5px}',
+    'h3{font-size:12pt;font-weight:700;margin:8px 0 4px}',
+    'p{margin:3px 0}',
+    'table{border-collapse:collapse;width:100%;margin:6px 0;font-size:11pt}',
+    'td,th{border:1px solid #999;padding:4px 7px;vertical-align:top;line-height:1.5}',
+    '.doc-header{margin-bottom:10px}',
+    '.proviso{font-size:10pt;color:#333;margin-top:14px;border-top:1px solid #ccc;padding-top:8px}',
+    /* Bold — all possible sources */
+    'b,strong{font-weight:700!important}',
+    '*[style*="font-weight:bold"],*[style*="font-weight: bold"],*[style*="font-weight:700"],*[style*="font-weight: 700"]{font-weight:700!important}',
+    /* Highlight / background colors — must print */
+    '*[style*="background-color"]{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}',
+    'mark{background-color:yellow!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}',
+    /* Italic, underline */
+    'i,em{font-style:italic}',
+    'u{text-decoration:underline}',
+    /* Font colors */
+    '*[style*="color"]{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}',
+    /* Dropdown spans */
+    'span.doc-dd,span[data-dd-key]{border:none!important;background:transparent;padding:0;font-size:11pt;color:#000}',
+  ].join('\n');
+
   w.document.write(
-    '<!DOCTYPE html><html><head><title>' + doc.name + '</title><meta charset="UTF-8">'
+    '<!DOCTYPE html><html><head>'
+    + '<title>' + (doc.name || 'Document') + '</title>'
+    + '<meta charset="UTF-8">'
     + '<style>' + printCss + '</style>'
     + '</head><body>'
     + '<div class="print-header"><span class="dt">' + dateStr + '</span></div>'
@@ -1225,7 +1294,7 @@ function printDoc() {
     + '</body></html>'
   );
   w.document.close();
-  setTimeout(() => { w.focus(); w.print(); }, 400);
+  setTimeout(function() { w.focus(); w.print(); }, 400);
 }
 
 
@@ -1469,7 +1538,7 @@ function _pcSubmit() {
    • Each undo step restores cursor position precisely
    • Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
    ─────────────────────────────────────────────────────── */
-const UNDO_MAX  = 100;
+const UNDO_MAX  = 500;
 const _undo     = [];   // [{html, sel}]
 const _redo     = [];
 let   _undoLock = false;
@@ -1553,18 +1622,66 @@ function redoEdit() {
   markDirty();
 }
 
-/* Snapshot on every keystroke — undo moves back one or two characters at a time */
-let _snapTimer = null;
+/* ── Undo snapshot strategy ─────────────────────────────
+   Goal: Each Ctrl+Z undoes one meaningful editing action
+   (a word, a deletion burst, a paste, a format change)
+   — NOT one character at a time.
 
+   Rules:
+   1. Structural keys (Space, Enter, Backspace, Delete,
+      Tab, punctuation) trigger an IMMEDIATE snapshot
+      BEFORE the key is applied → each word/line is its
+      own undo step.
+   2. Continuous typing is collected in a 800 ms debounce
+      → a run of characters becomes ONE undo step.
+   3. Paste, cut, format commands → immediate snapshot.
+   4. The undo stack holds 500 states (plenty for a full
+      editing session).
+   ─────────────────────────────────────────────────────── */
+const _WORD_BOUNDARY_KEYS = new Set([
+  ' ', 'Enter', 'Tab',
+  '.', ',', '!', '?', ';', ':', '-', '(', ')', '[', ']', '"', "'"
+]);
+let _snapTimer = null;
+let _lastSnapHtml = '';
+
+function _scheduleSnapshot(immediate) {
+  clearTimeout(_snapTimer);
+  if (immediate) {
+    _snapshot();
+  } else {
+    _snapTimer = setTimeout(_snapshot, 800);
+  }
+}
+
+/* Keydown: snapshot BEFORE structural keys so the pre-key
+   state is saved (critical for Backspace/Delete/Enter) */
+_ec.addEventListener('keydown', function(ev) {
+  if (_undoLock) return;
+  if (ev.ctrlKey || ev.metaKey) return; // handled by Ctrl+Z listener
+  if (ev.key === 'Backspace' || ev.key === 'Delete') {
+    _scheduleSnapshot(true);  // capture state before deletion
+  } else if (_WORD_BOUNDARY_KEYS.has(ev.key)) {
+    _scheduleSnapshot(true);  // capture state before word boundary
+  }
+}, true);
+
+/* Input: after typing, schedule a debounced snapshot */
 _ec.addEventListener('input', function() {
   if (_undoLock) return;
   clearTimeout(_snapTimer);
-  _snapTimer = setTimeout(function() { _snapshot(); }, 50);
+  _snapTimer = setTimeout(_snapshot, 800);
 });
 
-/* Snapshot on paste and cut */
-_ec.addEventListener('paste', function() { setTimeout(_snapshot, 50); });
-_ec.addEventListener('cut',   function() { setTimeout(_snapshot, 50); });
+/* Paste / cut → immediate snapshot after the action */
+_ec.addEventListener('paste', function() {
+  clearTimeout(_snapTimer);
+  setTimeout(function() { _snapshot(); }, 60);
+});
+_ec.addEventListener('cut', function() {
+  clearTimeout(_snapTimer);
+  setTimeout(function() { _snapshot(); }, 60);
+});
 
 /* ── Ctrl+Z / Ctrl+Y keyboard intercept ── */
 document.addEventListener('keydown', function(e) {
@@ -1724,15 +1841,20 @@ function showTblBar(tbl) {
   _selTable = tbl;
   document.querySelectorAll('.editor-content table').forEach(t => t.classList.remove('tbl-selected'));
   tbl.classList.add('tbl-selected');
-  // REFINEMENT: bar is CSS-fixed to screen top (see #tbl-bar in CSS).
-  // No dynamic left/top calculation needed — just show it.
-  const bar = document.getElementById('tbl-bar');
-  bar.style.display = 'flex';
+  // Show table action buttons in the format-bar
+  ['fmt-add-row','fmt-add-col','fmt-del-row','fmt-del-col','fmt-row-up','fmt-row-dn','fmt-del-tbl'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
 }
 
 function hideTblBar() {
-  document.getElementById('tbl-bar').style.display = 'none';
   if (_selTable) { _selTable.classList.remove('tbl-selected'); _selTable = null; }
+  // Hide table action buttons in the format-bar
+  ['fmt-add-row','fmt-add-col','fmt-del-row','fmt-del-col','fmt-row-up','fmt-row-dn','fmt-del-tbl'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 }
 
 
