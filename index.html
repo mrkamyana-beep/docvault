@@ -523,13 +523,13 @@ select.fmt-select{border:1px solid #d5d5d5;border-radius:5px;padding:2px 4px;fon
         <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:currentColor;vertical-align:middle"><path d="M3 3v18h18V3H3zm8 16H5v-6h6v6zm0-8H5V5h6v6zm8 8h-6v-6h6v6zm0-8h-6V5h6v6z"/></svg>
         Table
       </button>
-      <button class="fmt-btn" id="fmt-add-row" title="Add row below"   onclick="tblAction('addRowBelow')" style="display:none">+Row</button>
-      <button class="fmt-btn" id="fmt-add-col" title="Add col right"   onclick="tblAction('addColRight')" style="display:none">+Col</button>
-      <button class="fmt-btn" id="fmt-del-row" title="Delete row"      onclick="tblAction('deleteRow')"   style="display:none;color:#d32f2f">−Row</button>
-      <button class="fmt-btn" id="fmt-del-col" title="Delete column"   onclick="tblAction('deleteCol')"   style="display:none;color:#d32f2f">−Col</button>
-      <button class="fmt-btn" id="fmt-row-up"  title="Move row up"     onclick="tblAction('moveRowUp')"   style="display:none">▲Row</button>
-      <button class="fmt-btn" id="fmt-row-dn"  title="Move row down"   onclick="tblAction('moveRowDown')" style="display:none">▼Row</button>
-      <button class="fmt-btn" id="fmt-del-tbl" title="Remove table"    onclick="tblAction('deleteTable')" style="display:none;color:#d32f2f">✕Tbl</button>
+      <button class="fmt-btn" id="fmt-add-row" title="Add row below"   onmousedown="event.preventDefault();tblAction('addRowBelow')" style="display:none">+Row</button>
+      <button class="fmt-btn" id="fmt-add-col" title="Add col right"   onmousedown="event.preventDefault();tblAction('addColRight')" style="display:none">+Col</button>
+      <button class="fmt-btn" id="fmt-del-row" title="Delete row"      onmousedown="event.preventDefault();tblAction('deleteRow')"   style="display:none;color:#d32f2f">−Row</button>
+      <button class="fmt-btn" id="fmt-del-col" title="Delete column"   onmousedown="event.preventDefault();tblAction('deleteCol')"   style="display:none;color:#d32f2f">−Col</button>
+      <button class="fmt-btn" id="fmt-row-up"  title="Move row up"     onmousedown="event.preventDefault();tblAction('moveRowUp')"   style="display:none">▲Row</button>
+      <button class="fmt-btn" id="fmt-row-dn"  title="Move row down"   onmousedown="event.preventDefault();tblAction('moveRowDown')" style="display:none">▼Row</button>
+      <button class="fmt-btn" id="fmt-del-tbl" title="Remove table"    onmousedown="event.preventDefault();tblAction('deleteTable')" style="display:none;color:#d32f2f">✕Tbl</button>
     </div>
     <div class="editor-body">
       <div class="editor-sidebar">
@@ -1873,9 +1873,17 @@ _ec.addEventListener('contextmenu', function(e) {
   _ctxTable = cell.closest('table');
 });
 
-/* Click outside → close menu / hide bar */
+/* Click outside → close menu / hide bar
+   IMPORTANT: Do NOT clear context when clicking the format-bar
+   table buttons — they need _ctxTable/_ctxRow/_ctxCell to work */
+const _fmtTblBtnIds = new Set([
+  'fmt-add-row','fmt-add-col','fmt-del-row','fmt-del-col',
+  'fmt-row-up','fmt-row-dn','fmt-del-tbl'
+]);
 document.addEventListener('mousedown', function(e) {
   if (!document.getElementById('tbl-ctx').contains(e.target)) closeCtx();
+  /* If clicking a format-bar table button, keep context alive */
+  if (_fmtTblBtnIds.has(e.target.id) || e.target.closest('[id^="fmt-"]')) return;
   if (!document.getElementById('tbl-bar').contains(e.target) &&
       !e.target.closest('.editor-content table')) {
     hideTblBar();
@@ -1909,9 +1917,19 @@ document.querySelector('.editor-canvas').addEventListener('scroll', () => {
 function tblAction(action) {
   closeCtx();
   const tbl  = _ctxTable || _selTable;
-  const row  = _ctxRow;
-  const cell = _ctxCell;
   if (!tbl) return;
+
+  /* If ctxRow/ctxCell lost (e.g. focus moved to format-bar button),
+     fall back to the first cell of the first data row */
+  let row  = _ctxRow;
+  let cell = _ctxCell;
+  if (!row || !tbl.contains(row)) {
+    row  = tbl.rows[tbl.rows.length > 1 ? 1 : 0] || tbl.rows[0];
+    cell = row ? row.cells[0] : null;
+  }
+  if (!cell || !tbl.contains(cell)) {
+    cell = row ? row.cells[0] : null;
+  }
 
   /* Snapshot before every structural change so Ctrl+Z works */
   _snapshotBeforeAction();
