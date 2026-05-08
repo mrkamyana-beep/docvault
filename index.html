@@ -1829,6 +1829,13 @@ let _ctxCell   = null;
 let _selTable  = null;
 let _dragSrcTr = null;
 
+/* Persistent last-known context — never cleared, always updated on cell click.
+   tblAction uses these as the authoritative source so format-bar buttons
+   always know which table/row/cell was last active even after focus moves. */
+let _lastTbl  = null;
+let _lastRow  = null;
+let _lastCell = null;
+
 function _cellColIdx(cell) {
   return Array.from(cell.parentElement.cells).indexOf(cell);
 }
@@ -1900,6 +1907,10 @@ _ec.addEventListener('mousedown', function(e) {
     _ctxRow   = cell.closest('tr');
     _ctxTable = tbl;
     _selTable = tbl;
+    /* Persistent — never cleared, always reflects last active cell */
+    _lastTbl  = tbl;
+    _lastRow  = cell.closest('tr');
+    _lastCell = cell;
   }
 });
 
@@ -1916,20 +1927,17 @@ document.querySelector('.editor-canvas').addEventListener('scroll', () => {
    ─────────────────────────────────────────────────────── */
 function tblAction(action) {
   closeCtx();
-  const tbl  = _ctxTable || _selTable;
-  if (!tbl) return;
 
-  /* If ctxRow/ctxCell lost (e.g. focus moved to format-bar button),
-     fall back to the first cell of the first data row */
-  let row  = _ctxRow;
-  let cell = _ctxCell;
-  if (!row || !tbl.contains(row)) {
-    row  = tbl.rows[tbl.rows.length > 1 ? 1 : 0] || tbl.rows[0];
-    cell = row ? row.cells[0] : null;
-  }
-  if (!cell || !tbl.contains(cell)) {
-    cell = row ? row.cells[0] : null;
-  }
+  /* Use persistent last-known context — immune to focus/hideTblBar clearing */
+  const tbl  = _lastTbl || _ctxTable || _selTable;
+  if (!tbl || !tbl.parentNode) return; // table must still be in DOM
+
+  let row  = (_lastRow  && tbl.contains(_lastRow))  ? _lastRow  : null;
+  let cell = (_lastCell && tbl.contains(_lastCell)) ? _lastCell : null;
+
+  /* Final fallback: use first data row */
+  if (!row)  { row  = tbl.rows[tbl.rows.length > 1 ? 1 : 0] || tbl.rows[0]; }
+  if (!cell) { cell = row ? row.cells[0] : null; }
 
   /* Snapshot before every structural change so Ctrl+Z works */
   _snapshotBeforeAction();
@@ -2017,6 +2025,7 @@ function tblAction(action) {
     case 'deleteTable': {
       hideTblBar();
       tbl.parentNode.removeChild(tbl);
+      _lastTbl = null; _lastRow = null; _lastCell = null;
       break;
     }
 
@@ -2024,14 +2033,14 @@ function tblAction(action) {
       if (!row || row.rowIndex === 0) return;
       const prev = tbl.rows[row.rowIndex - 1];
       tbl.tBodies[0].insertBefore(row, prev);
-      _ctxRow = row;
+      _ctxRow = row; _lastRow = row;
       break;
     }
 
     case 'moveRowDown': {
       if (!row || row.rowIndex >= tbl.rows.length - 1) return;
       tbl.tBodies[0].insertBefore(row, tbl.rows[row.rowIndex + 2] || null);
-      _ctxRow = row;
+      _ctxRow = row; _lastRow = row;
       break;
     }
   }
